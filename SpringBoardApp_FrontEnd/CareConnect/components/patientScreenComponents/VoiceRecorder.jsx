@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import axios from 'axios';
 
-export default function VoiceRecorder() {
+export default function VoiceRecorder({ onUploadComplete }) {
     const [isRecording, setIsRecording] = useState(false);
     const [recordingPermission, setRecordingPermission] = useState(false);
     const [recordingTime, setRecordingTime] = useState('00:00');
@@ -102,27 +103,94 @@ export default function VoiceRecorder() {
             await recording.current.stopAndUnloadAsync();
             clearInterval(recordingTimeInterval.current);
 
-            const uri = recording.current.getURI(); // Get the URI of the recorded audio
+            const uri = recording.current.getURI();
 
-            // Define a new path to save the audio file
-            const newFilePath = `${FileSystem.documentDirectory}recordings/${Date.now()}.m4a`;
-            await FileSystem.makeDirectoryAsync(`${FileSystem.documentDirectory}recordings`, { intermediates: true });
-            await FileSystem.moveAsync({
-                from: uri,
-                to: newFilePath,
-            });
+            // Platform specific handling for file storage
+            let finalUri;
+            if (Platform.OS === 'web') {
+                // For web, use the URI directly
+                finalUri = uri;
+            } else {
+                // For mobile platforms, use FileSystem
+                const newFilePath = `${FileSystem.documentDirectory}recordings/${Date.now()}.m4a`;
+                await FileSystem.makeDirectoryAsync(`${FileSystem.documentDirectory}recordings`, { intermediates: true });
+                await FileSystem.moveAsync({
+                    from: uri,
+                    to: newFilePath,
+                });
+                finalUri = newFilePath;
+            }
 
-            const newRecording = {
-                id: Date.now().toString(),
-                uri: newFilePath, // Update the URI to the new file path
-                duration: recordingTime,
-                timestamp: new Date().toISOString(),
-            };
+            // First Alert: Ask user if they want to send the recording
+            Alert.alert(
+                'Send Request',
+                'Do you want to send this recording?',
+                [
+                    {
+                        text: 'Cancel',
+                        style: 'cancel',
+                        onPress: () => {
+                            // Clean up recording if cancelled
+                            if (Platform.OS !== 'web') {
+                                FileSystem.deleteAsync(finalUri).catch(error =>
+                                    console.error('Error deleting recording:', error)
+                                );
+                            }
+                            // Reset recording states
+                            recording.current = null;
+                            setIsRecording(false);
+                            setRecordingTime('00:00');
+                        }
+                    },
+                    {
+                        text: 'Send',
+                        onPress: async () => {
+                            try {
+                                // Call uploadRecording with the URI
+                                await uploadRecording(finalUri);
 
-            const updatedRecordings = [...recordings, newRecording];
-            setRecordings(updatedRecordings);
-            await AsyncStorage.setItem('recordings', JSON.stringify(updatedRecordings));
+                                // Save recording to local storage
+                                const newRecording = {
+                                    id: Date.now().toString(),
+                                    uri: finalUri,
+                                    duration: recordingTime,
+                                    timestamp: new Date().toISOString(),
+                                };
 
+                                const updatedRecordings = [...recordings, newRecording];
+                                setRecordings(updatedRecordings);
+
+                                // Only save to AsyncStorage on mobile platforms
+                                if (Platform.OS !== 'web') {
+                                    await AsyncStorage.setItem('recordings', JSON.stringify(updatedRecordings));
+                                }
+
+                                // Success alert
+                                Alert.alert(
+                                    'Success',
+                                    'Request sent successfully',
+                                    [
+                                        {
+                                            text: 'OK',
+                                            onPress: () => {
+                                                setRecordingTime('00:00');
+                                            }
+                                        }
+                                    ],
+                                    { cancelable: false }
+                                );
+
+                            } catch (error) {
+                                console.error('Error sending recording:', error);
+                                Alert.alert('Error', 'Failed to send recording');
+                            }
+                        }
+                    }
+                ],
+                { cancelable: false }
+            );
+
+            // Reset recording states
             recording.current = null;
             setIsRecording(false);
             setRecordingTime('00:00');
@@ -153,30 +221,96 @@ export default function VoiceRecorder() {
     };
 
     // This function is working but not responding on play button press
-    const playRecording = async (uri) => {
+    // const playRecording = async (uri) => {
+    //     try {
+    //         const soundObject = new Audio.Sound();
+    //         await soundObject.loadAsync({ uri });
+    //         await soundObject.playAsync();
+    //         console.log('Playing recording:', uri);
+    //     } catch (error) {
+    //         console.error('Failed to play recording:', error);
+    //         Alert.alert('Error', 'Failed to play recording');
+    //     }
+    // };
+
+    // This function can be useful while sharing audio recordings.
+    // const shareRecording = async (uri) => {
+    //     try {
+    //         const result = await Sharing.shareAsync(uri);
+    //         if (result.status === 'success') {
+    //             Alert.alert('Success', 'Recording shared successfully');
+    //         }
+    //     } catch (error) {
+    //         console.error('Error sharing recording:', error);
+    //         Alert.alert('Error', 'Failed to share recording');
+    //     }
+    // };
+
+    // Function to upload recording to backend using axios
+    const uploadRecording = async (uri) => {
         try {
-            const soundObject = new Audio.Sound();
-            await soundObject.loadAsync({ uri });
-            await soundObject.playAsync();
-            console.log('Playing recording:', uri);
+            const patientDetailsString = await AsyncStorage.getItem('patientDetails');
+            if (!patientDetailsString) {
+                throw new Error('Patient details not found');
+            }
+
+            const patientDetails = JSON.parse(patientDetailsString);
+            const formData = new FormData();
+
+            // Handle file differently for web and mobile
+            if (Platform.OS === 'web') {
+                // For web, the URI is already a Blob
+                formData.append('audio', uri);
+            } else {
+                // For mobile, create the file object
+                const extension = getFileExtension();
+                const fileName = `${patientDetails.name}_${Date.now()}.${extension}`;
+
+                formData.append('audio', {
+                    uri: uri,
+                    type: `audio/${extension}`,
+                    name: fileName
+                });
+            }
+
+            formData.append('patientName', patientDetails.name);
+
+            const response = await axios.post('http://192.168.163.108:5000/api/patients/upload-audio',
+                formData,
+                {
+                    headers: {
+                        'Content-Type': 'multipart/form-data',
+                        'patient-id': patientDetails.patientId
+                    }
+                }
+            );
+
+            if (onUploadComplete) {
+                onUploadComplete(response.data);
+            }
+            return response.data;
+
         } catch (error) {
-            console.error('Failed to play recording:', error);
-            Alert.alert('Error', 'Failed to play recording');
+            console.error('Error uploading recording:', error);
+            Alert.alert('Error', error.message || 'Failed to upload recording');
+            throw error;
         }
     };
 
-    // This function can be useful while sharing audio recordings.
-    const shareRecording = async (uri) => {
-        try {
-            const result = await Sharing.shareAsync(uri);
-            if (result.status === 'success') {
-                Alert.alert('Success', 'Recording shared successfully');
-            }
-        } catch (error) {
-            console.error('Error sharing recording:', error);
-            Alert.alert('Error', 'Failed to share recording');
+    // Helper function for file extension
+    const getFileExtension = () => {
+        if (Platform.OS === 'web') {
+            return 'webm'; // Web browsers typically use WebM format
         }
+        return Platform.OS === 'ios' ? 'm4a' : 'mp4';
     };
+
+    // Make uploadRecording available to parent component
+    React.useEffect(() => {
+        if (window) {
+            window.uploadRecording = uploadRecording;
+        }
+    }, []);
 
     return (
         <View style={styles.container}>

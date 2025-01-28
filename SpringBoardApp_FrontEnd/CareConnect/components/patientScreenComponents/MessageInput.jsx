@@ -1,22 +1,27 @@
-import React from 'react';
-import { View, TextInput, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, TextInput, TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 export default function MessageInput({ onSend }) {
-    const [message, setMessage] = React.useState('');
+    const [message, setMessage] = useState('');
+    const [recordingUri, setRecordingUri] = useState(null);
 
     const handleSend = () => {
-        if (message.trim()) {
-            const newRequest = {
-                request: message,
-                time: new Date().toLocaleTimeString(),
-                date: new Date().toLocaleDateString(),
-            };
-            onSend(newRequest); // Call the onSend function passed as a prop
-            setMessage(''); // Clear the input
+        if (!message && !recordingUri) {
+            Alert.alert('Error', 'Please enter a message or record audio');
+            return;
         }
+
+        onSend({
+            message,
+            recordingUri,
+        });
+
+        // Clear inputs after sending
+        setMessage('');
+        setRecordingUri(null);
     };
-    
+
     return (
         <View style={styles.container}>
             <TextInput
@@ -31,7 +36,7 @@ export default function MessageInput({ onSend }) {
             <TouchableOpacity style={styles.sendButtonSmall} onPress={handleSend}>
                 <Text style={styles.sendButtonText}>Send</Text>
             </TouchableOpacity>
-           
+
         </View>
     );
 }
@@ -50,18 +55,18 @@ const styles = StyleSheet.create({
         maxHeight: 150,
         marginHorizontal: 20,
         marginBottom: 20,
-        width: 350, 
+        width: 350,
         height: 80
     },
     sendButtonSmall: {
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: '#008B8B',
-        padding: 15, 
-        borderRadius: 8, 
+        padding: 15,
+        borderRadius: 8,
         marginHorizontal: 10,
         marginBottom: 5,
-        width: 150, 
+        width: 150,
         height: 50
     },
     sendButtonText: {
@@ -69,4 +74,4 @@ const styles = StyleSheet.create({
         color: 'white',
         fontWeight: '500',
     },
-   });
+});

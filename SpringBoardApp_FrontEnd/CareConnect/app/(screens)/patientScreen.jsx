@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { SafeAreaView, StyleSheet, ScrollView, Alert } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { SafeAreaView, StyleSheet, ScrollView, Alert, Text } from 'react-native';
 import { router } from 'expo-router';
 import Header from '../../components/patientScreenComponents/Header';
 import DateSelector from '../../components/patientScreenComponents/DateSelector';
@@ -10,10 +10,9 @@ import LogoutButton from '../../components/patientScreenComponents/LogOutButton'
 
 
 export default function PatientHomeScreen() {
-    //const [patientName, setPatientName] = useState('');
-    //const [patientId, setPatientId] = useState('');
-    const [patientDetails, setPatientDetails] = useState('');
+    const [patientDetails, setPatientDetails] = useState(null);
     const [requests, setRequests] = useState([]);
+    const voiceRecorderRef = useRef(null);  // Add this ref
 
     useEffect(() => {
         const fetchPatientDetails = async () => {
@@ -51,27 +50,34 @@ export default function PatientHomeScreen() {
 
     const handleSendMessage = async (newRequest) => {
         try {
-            const response = await fetch('http://localhost:5000/api/requests', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newRequest),
-            });
-            if (!response.ok) {
-                throw new Error('Failed to save the request to the database');
+            // Get the recording URI from the request
+            const recordingUri = newRequest.recordingUri;
+
+            if (recordingUri && window.uploadRecording) {
+                // Call uploadRecording function from VoiceRecorder component
+                const uploadResult = await window.uploadRecording(recordingUri);
+
+                // Add the upload result to the request
+                newRequest.audioDetails = uploadResult;
             }
 
-            const updatedRequests = [newRequest, ...requests];
+            // Update request history
+            const updatedRequests = [...requests, newRequest];
             setRequests(updatedRequests);
 
-            await AsyncStorage.setItem('requestHistory', JSON.stringify(updatedRequests)); // Save to AsyncStorage
-            console.log("Request saved : ", newRequest);
-        }
-        catch (error) {
-            console.error("Error sending request to backend:", error);
-            Alert.alert("Error", "Failed to send the request. Please try again.");
+            // Save to AsyncStorage
+            await AsyncStorage.setItem('requestHistory', JSON.stringify(updatedRequests));
+
+        } catch (error) {
+            console.error("Error handling message:", error);
+            Alert.alert('Error', 'Failed to send message');
         }
     };
 
+    const handleUploadComplete = (uploadResult) => {
+        console.log('Upload completed:', uploadResult);
+        // Handle any post-upload logic here
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -82,7 +88,9 @@ export default function PatientHomeScreen() {
             />
             <ScrollView contentContainerStyle={styles.scrollContent}>
                 <DateSelector />
-                <VoiceRecorder />
+                <VoiceRecorder
+                    onUploadComplete={handleUploadComplete}
+                />
                 <MessageInput onSend={handleSendMessage} />
             </ScrollView>
             <LogoutButton />

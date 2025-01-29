@@ -6,6 +6,7 @@
 - [AI-Part](#ai-part)
   - [Docker Setup](#option-1-using-docker)
   - [Python Virtual Environment Setup](#option-2-using-python-virtual-environment)
+-[User-flow](#user-flow)
 
 ## Setup and Running Instructions
 
@@ -138,3 +139,11 @@ Download the model from the following link and place it in the model folder:
 - Ensure that Python 3.7 or above is installed on your system
 - The `requirements.txt` file should include all the necessary dependencies to run the application
 - Place the downloaded model in the specified model directory before running the application
+
+
+
+## User-flow
+
+![User-Flow](User_flow.png)
+
+

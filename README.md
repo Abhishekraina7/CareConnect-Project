@@ -1,39 +1,13 @@
 # Voice-Based Patient Call System
 
 ## Quick Navigation
-- [Frontend Setup](#frontend-main-app-setup-and-running-instructions)
+- [Frontend Setup](#steps-to-run-frontend-main-app)
 - [Admin App Setup](#admin-app-setup-and-running-instructions)
-- [Voice System Setup](#voice-based-patient-call-system-1)
+- [AI-Part](#ai-part)
   - [Docker Setup](#option-1-using-docker)
   - [Python Virtual Environment Setup](#option-2-using-python-virtual-environment)
 
-## Frontend (Main App) Setup and Running Instructions
-
-### Prerequisites
-- Node.js (v14 or higher)
-- npm (Node Package Manager)
-
-### Steps to Run Frontend
-1. Navigate to the frontend directory:
-   ```bash
-   cd SpringBoardApp_Frontend
-   cd CareConnect
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm i
-   ```
-
-3. Start the development server:
-   ```bash
-   npx expo start
-   ```
-   The application will open in your default browser at `http://localhost:8081`
-
-### Troubleshooting
-- If you encounter any dependency issues, try deleting the `node_modules` folder and `package-lock.json` file, then run `npm install` again
-- Make sure all required environment variables are set properly (if any)
+## Setup and Running Instructions
 
 ## Admin App Setup and Running Instructions
 
@@ -56,26 +30,33 @@
    ```bash
    npm start
    ```
-   The admin application will open in your default browser at `http://localhost:3000`
+   The admin application will open in your default browser at `http://localhost:8081`
 
-### Additional Information for Admin App
-- The admin interface provides management capabilities for:
-  - User management
-  - Content management
-  - System settings
-  - Analytics dashboard
 
-### Troubleshooting Admin App
-- If you face CORS issues, ensure your backend API is properly configured
-- For dependency issues, try:
-  ```bash
-  rm -rf node_modules
-  rm package-lock.json
-  npm install
-  ```
-- Check if all environment variables are correctly set in `.env` file
+## Steps to Run Frontend Main App
+1. Navigate to the frontend directory:
+   ```bash
+   cd SpringBoardApp_Frontend
+   cd CareConnect
+   ```
 
-# Voice-Based Patient Call System
+2. Install dependencies:
+   ```bash
+   npm i
+   ```
+
+3. Start the development server:
+   ```bash
+   npx expo start
+   ```
+   The application will open in your default browser at `http://localhost:8081`
+
+### Troubleshooting
+- If you encounter any dependency issues, try deleting the `node_modules` folder and `package-lock.json` file, then run `npm install` again
+- Make sure all required environment variables are set properly (if any)
+
+
+# AI-Part
 
 ## Model Download
 Download the model from the following link and place it in the model folder:
@@ -157,7 +138,3 @@ Download the model from the following link and place it in the model folder:
 - Ensure that Python 3.7 or above is installed on your system
 - The `requirements.txt` file should include all the necessary dependencies to run the application
 - Place the downloaded model in the specified model directory before running the application
-
-
-## User Flow 
-![User-Flow](User_flow.png)

@@ -4,7 +4,6 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import axios from 'axios';
 
 export default function VoiceRecorder({ onUploadComplete }) {
@@ -16,27 +15,31 @@ export default function VoiceRecorder({ onUploadComplete }) {
     const recording = useRef(null);
     const recordingTimeInterval = useRef(null);
 
-    // Define recording options outside component to avoid recreation
+    // Define recording options
     const recordingOptions = {
         android: {
-            extension: '.mp4',
+            extension: '.wav',
             outputFormat: Audio.RECORDING_OPTION_ANDROID_OUTPUT_FORMAT_MPEG_4,
             audioEncoder: Audio.RECORDING_OPTION_ANDROID_AUDIO_ENCODER_AAC,
-            sampleRate: 44100,
-            numberOfChannels: 2,
+            sampleRate: 16000,
+            numberOfChannels: 1,
             bitRate: 128000,
         },
         ios: {
-            extension: '.m4a',
+            extension: '.wav',
             outputFormat: Audio.RECORDING_OPTION_IOS_OUTPUT_FORMAT_MPEG4AAC,
-            audioQuality: Audio.RECORDING_OPTION_IOS_AUDIO_QUALITY_MAX,
-            sampleRate: 44100,
-            numberOfChannels: 2,
+            audioQuality: Audio.RECORDING_OPTION_IOS_AUDIO_QUALITY_HIGH,
+            sampleRate: 16000,
+            numberOfChannels: 1,
             bitRate: 128000,
             linearPCMBitDepth: 16,
             linearPCMIsBigEndian: false,
             linearPCMIsFloat: false,
         },
+        web: {
+            mimeType: 'audio/wav',
+            bitsPerSecond: 128000,
+        }
     };
 
     useEffect(() => {
@@ -104,24 +107,12 @@ export default function VoiceRecorder({ onUploadComplete }) {
             clearInterval(recordingTimeInterval.current);
 
             const uri = recording.current.getURI();
+            console.log('Recording URI:', uri);
 
-            // Platform specific handling for file storage
-            let finalUri;
-            if (Platform.OS === 'web') {
-                // For web, use the URI directly
-                finalUri = uri;
-            } else {
-                // For mobile platforms, use FileSystem
-                const newFilePath = `${FileSystem.documentDirectory}recordings/${Date.now()}.m4a`;
-                await FileSystem.makeDirectoryAsync(`${FileSystem.documentDirectory}recordings`, { intermediates: true });
-                await FileSystem.moveAsync({
-                    from: uri,
-                    to: newFilePath,
-                });
-                finalUri = newFilePath;
-            }
+            setIsRecording(false);
+            setRecordingTime('00:00');
 
-            // First Alert: Ask user if they want to send the recording
+            // Directly upload the recorded audio file
             Alert.alert(
                 'Send Request',
                 'Do you want to send this recording?',
@@ -129,71 +120,27 @@ export default function VoiceRecorder({ onUploadComplete }) {
                     {
                         text: 'Cancel',
                         style: 'cancel',
-                        onPress: () => {
-                            // Clean up recording if cancelled
-                            if (Platform.OS !== 'web') {
-                                FileSystem.deleteAsync(finalUri).catch(error =>
-                                    console.error('Error deleting recording:', error)
-                                );
+                        onPress: async () => {
+                            try {
+                                await FileSystem.deleteAsync(uri);
+                            } catch (error) {
+                                console.error('Error deleting recording:', error);
                             }
-                            // Reset recording states
-                            recording.current = null;
-                            setIsRecording(false);
-                            setRecordingTime('00:00');
                         }
                     },
                     {
                         text: 'Send',
                         onPress: async () => {
                             try {
-                                // Call uploadRecording with the URI
-                                await uploadRecording(finalUri);
-
-                                // Save recording to local storage
-                                const newRecording = {
-                                    id: Date.now().toString(),
-                                    uri: finalUri,
-                                    duration: recordingTime,
-                                    timestamp: new Date().toISOString(),
-                                };
-
-                                const updatedRecordings = [...recordings, newRecording];
-                                setRecordings(updatedRecordings);
-
-                                // Only save to AsyncStorage on mobile platforms
-                                if (Platform.OS !== 'web') {
-                                    await AsyncStorage.setItem('recordings', JSON.stringify(updatedRecordings));
-                                }
-
-                                // Success alert
-                                Alert.alert(
-                                    'Success',
-                                    'Request sent successfully',
-                                    [
-                                        {
-                                            text: 'OK',
-                                            onPress: () => {
-                                                setRecordingTime('00:00');
-                                            }
-                                        }
-                                    ],
-                                    { cancelable: false }
-                                );
-
+                                await uploadRecording(uri); // Directly upload the recorded file
                             } catch (error) {
-                                console.error('Error sending recording:', error);
-                                Alert.alert('Error', 'Failed to send recording');
+                                console.error('Upload failed:', error);
                             }
                         }
                     }
                 ],
                 { cancelable: false }
             );
-
-            // Reset recording states
-            recording.current = null;
-            setIsRecording(false);
-            setRecordingTime('00:00');
 
         } catch (error) {
             console.error('Failed to stop recording:', error);
@@ -246,63 +193,80 @@ export default function VoiceRecorder({ onUploadComplete }) {
     //     }
     // };
 
-    // Function to upload recording to backend using axios
+    // Replace the verifyRecording function with this:
+    const verifyRecording = async (uri) => {
+        try {
+            if (!recording.current) {
+                throw new Error('No recording available');
+            }
+
+            const status = await recording.current.getStatusAsync();
+            console.log('Recording status:', status);
+
+            // Check if recording is valid
+            if (status.isDoneRecording && status.durationMillis > 0) {
+                return true;
+            } else {
+                throw new Error('Recording is not complete or duration is 0');
+            }
+        } catch (error) {
+            console.error('Error verifying recording:', error);
+            return false;
+        }
+    };
+
+    // Modify the uploadRecording function:
     const uploadRecording = async (uri) => {
         try {
+            const formData = new FormData();
+            console.log('Uploading file from URI:', uri);
+
+            // Add the audio file to formData
+            formData.append('audio_file', {
+                uri: uri,
+                type: 'audio/wav',
+                name: 'recording.wav'
+            });
+
+            // Retrieve patient details from AsyncStorage
             const patientDetailsString = await AsyncStorage.getItem('patientDetails');
             if (!patientDetailsString) {
                 throw new Error('Patient details not found');
             }
 
             const patientDetails = JSON.parse(patientDetailsString);
-            const formData = new FormData();
 
-            // Handle file differently for web and mobile
-            if (Platform.OS === 'web') {
-                // For web, the URI is already a Blob
-                formData.append('audio', uri);
-            } else {
-                // For mobile, create the file object
-                const extension = getFileExtension();
-                const fileName = `${patientDetails.name}_${Date.now()}.${extension}`;
+            // Add patient information to formData
+            formData.append('patientName', patientDetails.name); // Assuming patientDetails has a name field
+            // If you have a patient ID, you can also add it
+            formData.append('patientId', patientDetails.patientId); // Assuming patientDetails has a patientId field
 
-                formData.append('audio', {
-                    uri: uri,
-                    type: `audio/${extension}`,
-                    name: fileName
-                });
-            }
-
-            formData.append('patientName', patientDetails.name);
-
-            const response = await axios.post('http://192.168.163.108:5000/api/patients/upload-audio',
+            const response = await axios.post(
+                'http://192.168.215.108:5000/api/patients/upload-audio',
                 formData,
                 {
                     headers: {
                         'Content-Type': 'multipart/form-data',
-                        'patient-id': patientDetails.patientId
-                    }
+                        'patient-id': patientDetails.patientId // If you are sending it in headers
+                    },
                 }
             );
 
-            if (onUploadComplete) {
-                onUploadComplete(response.data);
+            console.log('Upload response:', response.data);
+            if (response.status === 200) {
+                Alert.alert('Success', 'Recording uploaded successfully');
+                return response.data;
             }
-            return response.data;
-
         } catch (error) {
-            console.error('Error uploading recording:', error);
-            Alert.alert('Error', error.message || 'Failed to upload recording');
+            console.error('Upload error details:', error.response?.data || error.message);
+            Alert.alert('Upload Error', 'Failed to upload recording');
             throw error;
         }
     };
 
     // Helper function for file extension
     const getFileExtension = () => {
-        if (Platform.OS === 'web') {
-            return 'webm'; // Web browsers typically use WebM format
-        }
-        return Platform.OS === 'ios' ? 'm4a' : 'mp4';
+        return 'wav';  // Always return wav
     };
 
     // Make uploadRecording available to parent component

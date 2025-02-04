@@ -6,7 +6,8 @@
 - [AI-Part](#ai-part)
   - [Docker Setup](#option-1-using-docker)
   - [Python Virtual Environment Setup](#option-2-using-python-virtual-environment)
--[User-flow](#user-flow)
+    
+- [User-flow](#user-flow)
 
 ## Setup and Running Instructions
 

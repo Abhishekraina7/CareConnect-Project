@@ -3,8 +3,7 @@ import { SafeAreaView, StyleSheet, ScrollView, Alert, Text } from 'react-native'
 import { router } from 'expo-router';
 import Header from '../../components/patientScreenComponents/Header';
 import DateSelector from '../../components/patientScreenComponents/DateSelector';
-import VoiceRecorder from '../../components/patientScreenComponents/VoiceRecorder';
-import MessageInput from '../../components/patientScreenComponents/MessageInput';
+import VoiceRecorder from '../../components/patientScreenComponents/VoiceRecorder1';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LogoutButton from '../../components/patientScreenComponents/LogOutButton'
 
@@ -12,7 +11,7 @@ import LogoutButton from '../../components/patientScreenComponents/LogOutButton'
 export default function PatientHomeScreen() {
     const [patientDetails, setPatientDetails] = useState(null);
     const [requests, setRequests] = useState([]);
-    const voiceRecorderRef = useRef(null);  // Add this ref
+
 
     useEffect(() => {
         const fetchPatientDetails = async () => {
@@ -88,10 +87,7 @@ export default function PatientHomeScreen() {
             />
             <ScrollView contentContainerStyle={styles.scrollContent}>
                 <DateSelector />
-                <VoiceRecorder
-                    onUploadComplete={handleUploadComplete}
-                />
-                <MessageInput onSend={handleSendMessage} />
+                <VoiceRecorder onUploadComplete={handleUploadComplete} />
             </ScrollView>
             <LogoutButton />
         </SafeAreaView>
